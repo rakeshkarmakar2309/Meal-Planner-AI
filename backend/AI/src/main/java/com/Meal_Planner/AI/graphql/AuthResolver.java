@@ -19,10 +19,9 @@ import com.netflix.graphql.dgs.InputArgument;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-@DgsComponent          // DGS equivalent of @Controller — registers this as a resolver
+@DgsComponent
 @RequiredArgsConstructor
 public class AuthResolver {
 
@@ -31,12 +30,8 @@ public class AuthResolver {
 
     // ── Public mutations ──────────────────────────────────────────────────────
 
-    @DgsMutation       // maps to "register" in your schema's Mutation type
-    public AuthResponse register(
-            @InputArgument RegisterInput input  // DGS deserializes JSON → RegisterInput
-    ) {
-        // Translate graphql input → service layer DTO
-        // Keeps your service completely unaware of GraphQL
+    @DgsMutation
+    public AuthResponse register(@InputArgument RegisterInput input) {
         return authService.register(
                 new RegisterRequest(input.email(), input.password(), input.name())
         );
@@ -50,8 +45,6 @@ public class AuthResolver {
     }
 
     @DgsMutation
-    // Single scalar arg — no @InputArgument wrapper type needed
-    // "refreshToken" must match the argument name in schema: refresh(refreshToken: String!)
     public AuthResponse refresh(@InputArgument String refreshToken) {
         return authService.refresh(new RefreshTokenRequest(refreshToken));
     }
@@ -59,11 +52,9 @@ public class AuthResolver {
     // ── Protected mutations ───────────────────────────────────────────────────
 
     @DgsMutation
-    public boolean logout(@AuthenticationPrincipal UserPrincipal principal) {
-        // JwtAuthFilter already ran — if token was valid, principal is set
-        // If no token or invalid token, principal is null → we throw
-        User user = requireAuthenticated(principal, "logout");
-        authService.logout(user);
+    public boolean logout() {
+        // Use helper to enforce authentication and get the User entity
+        authService.logout(getAuthenticatedUser());
         return true;
     }
 
@@ -71,29 +62,32 @@ public class AuthResolver {
 
     @DgsQuery
     public UserResponse me() {
-        // Manually pull from the SecurityContext where your JwtAuthFilter saved it
+        User user = getAuthenticatedUser();
+        return new UserResponse(
+                user.getId().toString(),
+                user.getEmail(),
+                user.getName()
+        );
+    }
+
+    // ── Helper Methods ────────────────────────────────────────────────────────
+
+    /**
+     * Centralized helper to enforce security.
+     * It checks if the JwtAuthFilter successfully populated the SecurityContext.
+     */
+    private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
-            throw new AccessDeniedException("Access denied — provide a valid Bearer token");
+        // Verify that the filter actually found and validated a token
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            throw new AccessDeniedException("Access denied — valid Bearer token required");
         }
 
         UserPrincipal principal = (UserPrincipal) auth.getPrincipal();
-        User user = userRepository.findById(principal.getId())
-                .orElseThrow(() -> new BadRequestException("Authenticated user not found"));
 
-        return new UserResponse(user.getId().toString(), user.getEmail(), user.getName());
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private User requireAuthenticated(UserPrincipal principal, String operation) {
-        if (principal == null) {
-            // Becomes errors[].extensions.classification = "PERMISSION_DENIED"
-            // HTTP status is still 200 — this error lives in the response body
-            throw new AccessDeniedException("Login required to perform: " + operation);
-        }
+        // Return the full User entity for service layer usage
         return userRepository.findById(principal.getId())
-                .orElseThrow(() -> new BadRequestException("Authenticated user not found"));
+                .orElseThrow(() -> new BadRequestException("Authenticated user no longer exists in database"));
     }
 }
