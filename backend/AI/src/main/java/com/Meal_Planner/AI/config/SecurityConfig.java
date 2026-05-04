@@ -1,7 +1,8 @@
 package com.Meal_Planner.AI.config;
 
+import com.Meal_Planner.AI.security.JwtAuthFilter;
+import com.Meal_Planner.AI.security.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
-import org.apache.catalina.User;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -38,7 +39,7 @@ public class SecurityConfig {
                 .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth->auth
                         .requestMatchers(
-                                "/api/auth/**"
+                                "/graphql"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -74,7 +75,7 @@ public class SecurityConfig {
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source=new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**",config);
+        source.registerCorsConfiguration("/graphql/**",config);
         return source;
     }
 }

@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: AI
+
+  # Database Configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/meal_planner
+    username: postgres
+    password: password
+    driver-class-name: org.postgresql.Driver
+
+  # JPA / Hibernate Properties
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate # Use 'validate' if you have migration files; 'update' for auto-creation
+    show-sql: true       # Useful for debugging; set to false in production
+    properties:
+      hibernate:
+        format_sql: true
+
+  # GraphQL Configuration
+  graphql:
+    path: /graphql
+
+app:
+  jwt:
+    secret: your-secret-minimum-32-chars-long
+    expiration-ms: 300000
+    refresh-expiration-ms: 604800000
+
+dgs:
+  graphql:
+    schema-locations: classpath*:schema/**/*.graphqls
