@@ -29,6 +29,18 @@ app:
     expiration-ms: 300000
     refresh-expiration-ms: 604800000
 
+  cors:
+    allowed-origins: "http://localhost:5173"
+
+
+  argon2:
+    salt-length: 16
+    hash-length: 32
+    parallelism: 1
+    memory: 65536
+    iterations: 10
+
+
 dgs:
   graphql:
     schema-locations: classpath*:schema/**/*.graphqls

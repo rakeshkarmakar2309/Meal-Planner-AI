@@ -10,10 +10,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
@@ -23,17 +25,22 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        String token=extractToken(request);
-        if(StringUtils.hasText(token) && jwtUtil.isValid(token)){
-            String email=jwtUtil.extractEmail(token);
-            var userDetails=userDetailsService.loadUserByUsername(email);
-            var auth=new UsernamePasswordAuthenticationToken(
-                    userDetails,
-                    null,
-                    userDetails.getAuthorities()
-            );
-            auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(auth);
+        try {
+            String token = extractToken(request);
+            if (StringUtils.hasText(token) && jwtUtil.isValid(token)) {
+                String email = jwtUtil.extractEmail(token);
+                var userDetails = userDetailsService.loadUserByUsername(email);
+                var auth = new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities()
+                );
+                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
+        } catch (Exception e) {
+            log.warn("JWT filter: could not set authentication: {}",e.getMessage());
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request,response);

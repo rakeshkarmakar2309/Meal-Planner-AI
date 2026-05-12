@@ -6,27 +6,21 @@ import com.Meal_Planner.AI.dto.request.RegisterRequest;
 import com.Meal_Planner.AI.dto.response.AuthResponse;
 import com.Meal_Planner.AI.dto.response.UserResponse;
 import com.Meal_Planner.AI.entity.User;
-import com.Meal_Planner.AI.exception.BadRequestException;
 import com.Meal_Planner.AI.graphql.input.LoginInput;
 import com.Meal_Planner.AI.graphql.input.RegisterInput;
-import com.Meal_Planner.AI.repository.UserRepository;
-import com.Meal_Planner.AI.security.UserPrincipal;
 import com.Meal_Planner.AI.service.AuthService;
 import com.netflix.graphql.dgs.DgsComponent;
 import com.netflix.graphql.dgs.DgsMutation;
 import com.netflix.graphql.dgs.DgsQuery;
 import com.netflix.graphql.dgs.InputArgument;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @DgsComponent
 @RequiredArgsConstructor
 public class AuthResolver {
 
     private final AuthService authService;
-    private final UserRepository userRepository;
 
     // ── Public mutations ──────────────────────────────────────────────────────
 
@@ -52,42 +46,18 @@ public class AuthResolver {
     // ── Protected mutations ───────────────────────────────────────────────────
 
     @DgsMutation
+    @PreAuthorize("isAuthenticated()")
     public boolean logout() {
         // Use helper to enforce authentication and get the User entity
-        authService.logout(getAuthenticatedUser());
+        authService.logout();
         return true;
     }
 
     // ── Protected queries ─────────────────────────────────────────────────────
 
     @DgsQuery
+    @PreAuthorize("isAuthenticated()")
     public UserResponse me() {
-        User user = getAuthenticatedUser();
-        return new UserResponse(
-                user.getId().toString(),
-                user.getEmail(),
-                user.getName()
-        );
-    }
-
-    // ── Helper Methods ────────────────────────────────────────────────────────
-
-    /**
-     * Centralized helper to enforce security.
-     * It checks if the JwtAuthFilter successfully populated the SecurityContext.
-     */
-    private User getAuthenticatedUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
-        // Verify that the filter actually found and validated a token
-        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
-            throw new AccessDeniedException("Access denied — valid Bearer token required");
-        }
-
-        UserPrincipal principal = (UserPrincipal) auth.getPrincipal();
-
-        // Return the full User entity for service layer usage
-        return userRepository.findById(principal.getId())
-                .orElseThrow(() -> new BadRequestException("Authenticated user no longer exists in database"));
+        return authService.toUserResponse(authService.getAuthenticatedUser());
     }
 }

@@ -15,13 +15,17 @@ public class UserPrincipal implements UserDetails {
 
     @Getter
     private final UUID id;
+    @Getter
+    private final String name;
     private final String email;
     private final String password;
+
 
     public UserPrincipal(User user){
         this.id=user.getId();
         this.email=user.getEmail();
         this.password=user.getPassword();
+        this.name=user.getName();
     }
 
     @Override
