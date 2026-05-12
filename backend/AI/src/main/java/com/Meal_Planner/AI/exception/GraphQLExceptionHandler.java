@@ -6,11 +6,15 @@ import com.netflix.graphql.types.errors.TypedGraphQLError;
 import graphql.execution.DataFetcherExceptionHandler;
 import graphql.execution.DataFetcherExceptionHandlerParameters;
 import graphql.execution.DataFetcherExceptionHandlerResult;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -55,6 +59,31 @@ public class GraphQLExceptionHandler implements DataFetcherExceptionHandler {
             return CompletableFuture.completedFuture(
                     DataFetcherExceptionHandlerResult.newResult(error).build()
             );
+        }
+
+        if (exception instanceof AuthenticationException) {
+            var error = TypedGraphQLError.newBuilder()
+                    .errorType(ErrorType.UNAUTHENTICATED)
+                    // Generic on purpose — never hint which field (email vs password) is wrong
+                    .message("Invalid email or password")
+                    .path(params.getPath())
+                    .build();
+            return CompletableFuture.completedFuture(
+                    DataFetcherExceptionHandlerResult.newResult(error).build()
+            );
+        }
+
+        if (exception instanceof ConstraintViolationException cve) {
+            String message = cve.getConstraintViolations().stream()
+                    .map(ConstraintViolation::getMessage)
+                    .collect(Collectors.joining(", "));
+            var error = TypedGraphQLError.newBadRequestBuilder()
+                    .message(message)
+                    .path(params.getPath())
+                    .build();
+            return CompletableFuture.completedFuture(
+                    DataFetcherExceptionHandlerResult.newResult(error).build());
+
         }
 
         log.error("Unhandled GraphQL exception at {}", params.getPath(), exception);
